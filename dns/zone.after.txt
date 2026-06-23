@@ -1,0 +1,22 @@
+; AFTER - only the website (apex + www) moves to Webflow.
+; app stays on the load balancer. blog stays on the load balancer (served at /blog,
+; which Webflow does not own, so the redirect/exclusion is handled in Traefik + Webflow).
+;
+; Webflow targets (from Webflow > Project Settings > Publishing):
+;   www  -> proxy-ssl.webflow.com   (CNAME)
+;   apex -> 75.2.70.75 / 99.83.190.102  (A records, Webflow's documented apex IPs)
+;
+; TTLs were lowered to 300 24-48h earlier so cutover and rollback propagate fast.
+
+$ORIGIN example.tld.
+$TTL 300
+
+@        300   IN  A      75.2.70.75        ; Webflow apex
+@        300   IN  A      99.83.190.102     ; Webflow apex (second record)
+www      300   IN  CNAME  proxy-ssl.webflow.com.   ; Webflow www
+app      300   IN  A      203.0.113.10      ; UNCHANGED - CRM / Application on load balancer
+
+; NOTE: example.tld/blog is still WordPress on the load balancer.
+; Because the apex now resolves to Webflow, /blog must be preserved either by:
+;   (a) moving the blog to blog.example.tld (CNAME -> load balancer), recommended, or
+;   (b) keeping a 301 from Webflow /blog to blog.example.tld during transition.

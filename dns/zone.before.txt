@@ -1,0 +1,10 @@
+; BEFORE - apex and www point at the Traefik load balancer.
+; App and blog also resolve to the same load balancer. TTLs are high.
+
+$ORIGIN example.tld.
+$TTL 3600
+
+@        3600  IN  A      203.0.113.10      ; load balancer (Traefik)
+www      3600  IN  A      203.0.113.10      ; load balancer (Traefik)
+app      3600  IN  A      203.0.113.10      ; CRM / Application
+;        blog is served as example.tld/blog by the same load balancer

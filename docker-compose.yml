@@ -1,0 +1,32 @@
+# Reproduces the FUSED stack locally so the migration demo actually runs.
+# Traefik routes the website + app + blog through one instance (the problem state).
+# Swap traefik/dynamic/routers.yml -> routers.cutover.yml to watch the website get peeled off.
+
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - "--configFile=/etc/traefik/traefik.yml"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"   # dashboard (illustrative only)
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  web:                    # the marketing website being migrated to Webflow
+    image: nginx:alpine
+    labels:
+      - "traefik.enable=true"
+
+  app:                    # CRM / Application - must stay up
+    image: kennethreitz/httpbin
+    labels:
+      - "traefik.enable=true"
+
+  wordpress:              # WordPress blog at /blog - must stay up
+    image: nginx:alpine
+    labels:
+      - "traefik.enable=true"

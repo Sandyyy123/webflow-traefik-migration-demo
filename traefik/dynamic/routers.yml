@@ -1,0 +1,46 @@
+# BEFORE - the fused state.
+# A previous developer routed the public website THROUGH the application stack,
+# so all three services share one Traefik instance and the website cannot be
+# replaced without touching production app infrastructure.
+
+http:
+  routers:
+
+    # Main website - fused into the app infra (this is what we are peeling off).
+    website:
+      rule: "Host(`example.tld`) || Host(`www.example.tld`)"
+      entryPoints: [websecure]
+      service: web-svc
+      tls:
+        certResolver: le
+
+    # CRM / Application - MUST keep running untouched.
+    app:
+      rule: "Host(`app.example.tld`)"
+      entryPoints: [websecure]
+      service: app-svc
+      tls:
+        certResolver: le
+
+    # WordPress blog - served under /blog, MUST keep running untouched.
+    blog:
+      rule: "Host(`example.tld`) && PathPrefix(`/blog`)"
+      entryPoints: [websecure]
+      service: wordpress-svc
+      priority: 100        # higher priority than the website router so /blog wins
+      tls:
+        certResolver: le
+
+  services:
+    web-svc:
+      loadBalancer:
+        servers:
+          - url: "http://web:80"
+    app-svc:
+      loadBalancer:
+        servers:
+          - url: "http://app:3000"
+    wordpress-svc:
+      loadBalancer:
+        servers:
+          - url: "http://wordpress:80"

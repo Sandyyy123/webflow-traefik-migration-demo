@@ -1,0 +1,58 @@
+# AFTER - the website is served by Webflow (external), app + blog stay on Traefik.
+#
+# Key safety choice: the website router is NOT deleted. It is kept as a permanent
+# 301 redirect to the canonical Webflow host. That way:
+#   * any client still resolving the old DNS lands correctly during propagation,
+#   * a rollback is purely a DNS revert (re-point apex/www at this load balancer),
+#     because this router is still here and ready to serve again if we drop the redirect.
+
+http:
+  routers:
+
+    # Website -> Webflow. Kept as a redirect, not removed, so rollback stays trivial.
+    website-redirect:
+      rule: "Host(`example.tld`) || Host(`www.example.tld`)"
+      entryPoints: [websecure]
+      service: noop-svc
+      priority: 1
+      middlewares: [to-webflow]
+      tls:
+        certResolver: le
+
+    # CRM / Application - UNCHANGED.
+    app:
+      rule: "Host(`app.example.tld`)"
+      entryPoints: [websecure]
+      service: app-svc
+      tls:
+        certResolver: le
+
+    # WordPress blog under /blog - UNCHANGED, still higher priority so it always wins.
+    blog:
+      rule: "Host(`example.tld`) && PathPrefix(`/blog`)"
+      entryPoints: [websecure]
+      service: wordpress-svc
+      priority: 100
+      tls:
+        certResolver: le
+
+  middlewares:
+    to-webflow:
+      redirectRegex:
+        regex: "^https?://(www\\.)?example\\.tld/(.*)"
+        replacement: "https://www.example.tld/${2}"   # canonical host now points at Webflow
+        permanent: false                               # 302 during cutover, flip to true after burn-in
+
+  services:
+    noop-svc:
+      loadBalancer:
+        servers:
+          - url: "http://web:80"   # never reached once DNS points at Webflow; kept for warm rollback
+    app-svc:
+      loadBalancer:
+        servers:
+          - url: "http://app:3000"
+    wordpress-svc:
+      loadBalancer:
+        servers:
+          - url: "http://wordpress:80"
